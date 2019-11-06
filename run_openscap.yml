@@ -1,0 +1,32 @@
+---
+- hosts: all
+  become: true
+
+
+  vars:
+    oscap_profile: xccdf_org.ssgproject.content_profile_pci-dss
+    oscap_policy: ssg-rhel-dss
+    oscap_policy_report_dest: "{{ playbook_dir }}/generated_reports/oscap-reports/{{ inventory_hostname }}-{{ oscap_policy }}.html"
+  tasks:
+
+    - name: install openscap scanner
+      package:
+        name: "{{ item }}"
+        state: present
+      with_items:
+        - openscap-scanner
+        - scap-security-guide
+
+    - block:
+        - name: run openscap
+          shell: oscap xccdf eval  --profile xccdf_org.ssgproject.content_profile_rht-ccp  --results-arf arf.xml  --report report.html  /usr/share/xml/scap/ssg/content/ssg-rhel7-ds.xml
+          args:
+          exectable: /bin/bash
+
+      always:
+        - name: download report
+          fetch:
+            src: /home/ansible/report.html
+            dest: "{{ oscap_policy_report_dest }}"
+            flat: yes
+
