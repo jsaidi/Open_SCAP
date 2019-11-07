@@ -1,0 +1,56 @@
+---
+- hosts: db_servers
+  become: true
+  any_errors_fatal: true
+
+  vars:
+    oscap_profile: xccdf_org.ssgproject.content_profile_pci-dss
+    oscap_policy: ssg-rhel-dss
+    oscap_policy_report_dest: "{{ playbook_dir }}/generated_reports/oscap-reports/{{ inventory_hostname }}-{{ oscap_policy }}.html"
+  tasks:
+
+    - name: install openscap scanner
+      package:
+        name: "{{ item }}"
+        state: present
+      with_items:
+        - openscap-scanner
+        - scap-security-guide
+
+    - name: run openscap
+      shell: oscap xccdf eval  --profile xccdf_org.ssgproject.content_profile_rht-ccp  --results-arf arf.xml  --report report.csv  /usr/share/xml/scap/ssg/content/ssg-rhel7-ds.xml
+      ignore_errors: True
+      args:
+        executable: /bin/bash
+      
+       
+    - name: reading csv report
+      shell: cat /home/ansible/report.csv | grep Score
+      register: output
+
+    - name: Getting score from csv report 1/2
+      set_fact:
+        score_tmp: "{{ output.stdout.split(': ')[2] }}"
+
+    - name: Getting score from csv report 2/2
+      set_fact:
+        score: "{{ score_tmp.split('%')[0] }}"
+
+    - debug: var=score
+
+    - name: writing variable value on workspace
+      lineinfile:
+         path: ./score_results
+         line: "{{ score }}"
+         create: yes
+         owner: jenkins
+         group: jenkins
+      delegate_to: localhost
+       
+
+
+    - name: Showing contents results
+      shell: "cat ./score_results | sort -n"
+      delegate_to: localhost
+      
+      
